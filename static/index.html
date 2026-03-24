@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RAG Chat</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { background: #1a1d27; border-bottom: 1px solid #2d3148; padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 15px; font-weight: 600; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; transition: background .3s; }
+  .status-dot.ready { background: #10b981; }
+  .status-text { font-size: 12px; color: #94a3b8; }
+
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* Left sidebar */
+  .sidebar { width: 260px; background: #1a1d27; border-right: 1px solid #2d3148; display: flex; flex-direction: column; padding: 16px; gap: 12px; overflow-y: auto; flex-shrink: 0; }
+  .sidebar h2 { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #64748b; }
+
+  .upload-zone { border: 1.5px dashed #2d3148; border-radius: 8px; padding: 20px 12px; text-align: center; cursor: pointer; transition: all .2s; }
+  .upload-zone:hover { border-color: #4f8ef7; background: rgba(79,142,247,.05); }
+  .upload-zone input { display: none; }
+  .upload-zone p { font-size: 12px; color: #64748b; margin-top: 6px; }
+  .upload-zone .icon { font-size: 22px; }
+
+  .upload-btn { background: #4f8ef7; color: #fff; border: none; border-radius: 6px; padding: 8px; width: 100%; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity .2s; }
+  .upload-btn:hover { opacity: .85; }
+  .upload-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .file-list { display: flex; flex-direction: column; gap: 6px; }
+  .file-item { background: #252836; border-radius: 6px; padding: 8px 10px; font-size: 12px; }
+  .file-item .fname { color: #e2e8f0; font-weight: 500; }
+  .file-item .fmeta { color: #64748b; font-size: 11px; margin-top: 2px; }
+
+  .chunk-count { background: #252836; border-radius: 6px; padding: 10px; text-align: center; }
+  .chunk-count .num { font-size: 28px; font-weight: 700; color: #4f8ef7; font-variant-numeric: tabular-nums; }
+  .chunk-count .label { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+  /* Chat area */
+  .chat-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  .msg { display: flex; flex-direction: column; gap: 6px; max-width: 80%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.bot  { align-self: flex-start; }
+
+  .bubble { padding: 12px 16px; border-radius: 12px; font-size: 13px; line-height: 1.65; }
+  .msg.user .bubble { background: #4f8ef7; color: #fff; border-bottom-right-radius: 3px; }
+  .msg.bot  .bubble { background: #1e2235; border: 1px solid #2d3148; border-bottom-left-radius: 3px; }
+
+  .ctx-box { background: #13161e; border: 1px solid #2d3148; border-radius: 8px; padding: 10px 12px; font-size: 11px; color: #64748b; }
+  .ctx-title { color: #10b981; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 6px; }
+  .ctx-item { border-left: 2px solid #2d3148; padding-left: 8px; margin-bottom: 6px; line-height: 1.5; }
+  .ctx-item:first-of-type { border-left-color: #4f8ef7; }
+
+  .thinking { display: flex; align-items: center; gap: 8px; background: #1e2235; border: 1px solid #2d3148; border-radius: 12px; border-bottom-left-radius: 3px; padding: 12px 16px; font-size: 12px; color: #64748b; align-self: flex-start; }
+  .dots { display: flex; gap: 4px; }
+  .dots span { width: 5px; height: 5px; border-radius: 50%; background: #64748b; animation: bounce 1.2s ease-in-out infinite; }
+  .dots span:nth-child(2) { animation-delay: .2s; }
+  .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes bounce { 0%,80%,100%{opacity:.2;transform:scale(.8)} 40%{opacity:1;transform:scale(1)} }
+
+  .input-row { padding: 14px 20px; border-top: 1px solid #2d3148; display: flex; gap: 8px; background: #1a1d27; }
+  .msg-input { flex: 1; background: #252836; border: 1px solid #2d3148; border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-size: 13px; font-family: inherit; outline: none; resize: none; }
+  .msg-input:focus { border-color: #4f8ef7; }
+  .ask-btn { background: #4f8ef7; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .2s; white-space: nowrap; }
+  .ask-btn:hover { opacity: .85; }
+  .ask-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .empty-state { margin: auto; text-align: center; color: #3d4466; }
+  .empty-state .big { font-size: 40px; margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="status-dot" id="statusDot"></div>
+  <h1>RAG Chat</h1>
+  <span class="status-text" id="statusText">No documents indexed</span>
+</div>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h2>Documents</h2>
+
+    <label class="upload-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".txt,.pdf" onchange="handleFileSelect(this)"/>
+      <div class="icon">📁</div>
+      <div style="font-size:13px;font-weight:600;margin-top:6px">Click to upload</div>
+      <p>.txt or .pdf files</p>
+    </label>
+
+    <button class="upload-btn" id="uploadBtn" onclick="uploadFile()" disabled>Upload & Index</button>
+
+    <div class="chunk-count">
+      <div class="num" id="chunkNum">0</div>
+      <div class="label">chunks indexed</div>
+    </div>
+
+    <h2>Indexed Files</h2>
+    <div class="file-list" id="fileList">
+      <div style="font-size:12px;color:#3d4466">No files yet.</div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-wrapper">
+    <div class="messages" id="messages">
+      <div class="empty-state" id="emptyState">
+        <div class="big">💬</div>
+        <p>Upload a document on the left,<br>then ask questions about it here.</p>
+      </div>
+    </div>
+    <div class="input-row">
+      <textarea class="msg-input" id="msgInput" rows="1" placeholder="Ask a question about your documents..." onkeydown="handleKey(event)"></textarea>
+      <button class="ask-btn" id="askBtn" onclick="ask()" disabled>Ask</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let selectedFile = null;
+
+// ── Check server status on load ──────────────────────────────
+async function checkStatus() {
+  try {
+    const r = await fetch(`${API}/status`);
+    const d = await r.json();
+    updateStatus(d.total_chunks, d.documents);
+  } catch(e) {
+    document.getElementById('statusText').textContent = 'Server not running';
+  }
+}
+
+function updateStatus(chunks, files) {
+  document.getElementById('chunkNum').textContent = chunks;
+  const dot  = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  const askBtn = document.getElementById('askBtn');
+
+  if (chunks > 0) {
+    dot.classList.add('ready');
+    text.textContent = `${chunks} chunks · ${files.length} file(s)`;
+    askBtn.disabled = false;
+
+    const list = document.getElementById('fileList');
+    list.innerHTML = files.map(f => `
+      <div class="file-item">
+        <div class="fname">📄 ${f}</div>
+      </div>`).join('') || '<div style="font-size:12px;color:#3d4466">No files yet.</div>';
+  } else {
+    dot.classList.remove('ready');
+    text.textContent = 'No documents indexed';
+    askBtn.disabled = true;
+  }
+}
+
+// ── File upload ───────────────────────────────────────────────
+function handleFileSelect(input) {
+  selectedFile = input.files[0];
+  document.getElementById('uploadBtn').disabled = !selectedFile;
+  if (selectedFile) {
+    document.querySelector('#dropZone div:nth-child(2)').textContent = selectedFile.name;
+  }
+}
+
+async function uploadFile() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Indexing...';
+
+  const form = new FormData();
+  form.append('file', selectedFile);
+
+  try {
+    const r = await fetch(`${API}/upload`, { method: 'POST', body: form });
+    const d = await r.json();
+
+    if (!r.ok) throw new Error(d.detail || 'Upload failed');
+
+    addSystemMsg(`✅ "${selectedFile.name}" indexed — ${d.chunks_created} chunks created.`);
+    await checkStatus();
+
+    // Remove empty state
+    document.getElementById('emptyState')?.remove();
+
+  } catch(e) {
+    addSystemMsg(`❌ Error: ${e.message}`);
+  }
+
+  btn.textContent = 'Upload & Index';
+  btn.disabled = false;
+  selectedFile = null;
+  document.getElementById('fileInput').value = '';
+  document.querySelector('#dropZone div:nth-child(2)').textContent = 'Click to upload';
+}
+
+// ── Ask a question ─────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); }
+}
+
+async function ask() {
+  const input = document.getElementById('msgInput');
+  const q = input.value.trim();
+  if (!q) return;
+
+  input.value = '';
+  document.getElementById('askBtn').disabled = true;
+  document.getElementById('emptyState')?.remove();
+
+  // User bubble
+  addMsg('user', q);
+
+  // Thinking bubble
+  const thinkId = 'think-' + Date.now();
+  const messages = document.getElementById('messages');
+  messages.innerHTML += `
+    <div class="thinking" id="${thinkId}">
+      <span>🔍 Retrieving relevant chunks...</span>
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>`;
+  messages.scrollTop = messages.scrollHeight;
+
+  try {
+    const r = await fetch(`${API}/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Request failed');
+
+    document.getElementById(thinkId)?.remove();
+
+    // Show retrieved context
+    messages.innerHTML += `
+      <div class="ctx-box" style="max-width:80%">
+        <div class="ctx-title">📚 ${d.chunks_used.length} chunks retrieved</div>
+        ${d.chunks_used.map((c, i) => `
+          <div class="ctx-item">
+            <span style="color:#4f8ef7;font-size:10px;font-weight:600">chunk_${String(d.chunk_ids[i]).padStart(2,'0')} ${i===0?'· best match':''}</span><br>
+            ${esc(c.substring(0, 130))}...
+          </div>`).join('')}
+      </div>`;
+
+    // Answer bubble
+    addMsg('bot', d.answer);
+
+  } catch(e) {
+    document.getElementById(thinkId)?.remove();
+    addMsg('bot', `❌ Error: ${e.message}`);
+  }
+
+  document.getElementById('askBtn').disabled = false;
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function addMsg(role, text) {
+  const messages = document.getElementById('messages');
+  messages.innerHTML += `
+    <div class="msg ${role === 'user' ? 'user' : 'bot'}">
+      <div class="bubble">${esc(text).replace(/\n/g,'<br>')}</div>
+    </div>`;
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function addSystemMsg(text) {
+  const messages = document.getElementById('messages');
+  messages.innerHTML += `
+    <div style="text-align:center;font-size:12px;color:#64748b;padding:4px">${text}</div>`;
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+checkStatus();
+</script>
+</body>
+</html>
