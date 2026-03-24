@@ -1,7 +1,31 @@
-# RAG From Scratch — Python + FastAPI
+# 🚀 RAG From Scratch (FastAPI + Groq)
 
-A fully working RAG (Retrieval-Augmented Generation) backend
-you can run locally in VS Code.
+A lightweight Retrieval-Augmented Generation (RAG) system built using FastAPI and Groq LLM.
+
+## ✨ Features
+
+* 📄 Upload PDF & TXT documents
+* 🔍 Semantic search (cosine similarity)
+* 🤖 LLM-powered answers (LLaMA 3 via Groq)
+* ⚡ FastAPI backend
+* 🌐 Simple web UI
+
+## 🛠️ Tech Stack
+
+* Python
+* FastAPI
+* Groq API
+* HTML/CSS
+
+## ▶️ Run Locally
+
+```bash
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+Open: http://localhost:8000
+
 
 ## Folder Structure
 
